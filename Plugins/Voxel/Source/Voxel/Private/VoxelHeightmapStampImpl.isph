@@ -1,0 +1,275 @@
+﻿// Copyright Voxel Plugin SAS. All Rights Reserved.
+
+// ReSharper disable CppCStyleCast
+// ReSharper disable CppVariableCanBeMadeConstexpr
+// ReSharper disable CppUE4CodingStandardNamingViolationWarning
+
+#include "VoxelMinimal.isph"
+#include "VoxelStampQueryImpl.isph"
+#include "VoxelStampTransformImpl.isph"
+
+FORCEINLINE varying float SampleHeightmap(
+	const uniform bool bUseBicubic,
+	const uniform int32 SizeX,
+	const uniform int32 SizeY,
+	const uniform Type Heightmap[],
+	const varying float2 Position)
+{
+	const varying float MinXf = floor(Position.x);
+	const varying float MinYf = floor(Position.y);
+
+	const varying float AlphaX = clamp(Position.x - MinXf, 0.f, 1.f);
+	const varying float AlphaY = clamp(Position.y - MinYf, 0.f, 1.f);
+
+	const varying int32 MinX = (int32)MinXf;
+	const varying int32 MinY = (int32)MinYf;
+
+	if (!bUseBicubic)
+	{
+		return BilinearInterpolation(
+			IGNORE_PERF_WARNING
+			Heightmap[(MinX + 0) + SizeX * (MinY + 0)],
+			IGNORE_PERF_WARNING
+			Heightmap[(MinX + 1) + SizeX * (MinY + 0)],
+			IGNORE_PERF_WARNING
+			Heightmap[(MinX + 0) + SizeX * (MinY + 1)],
+			IGNORE_PERF_WARNING
+			Heightmap[(MinX + 1) + SizeX * (MinY + 1)],
+			AlphaX,
+			AlphaY);
+	}
+
+	const varying float p0_Y_MultiplierVector = ((-0.5f * AlphaY + 1.0f) * AlphaY - 0.5f) * AlphaY + 0.0f;
+	const varying float p1_Y_MultiplierVector = ((+1.5f * AlphaY - 2.5f) * AlphaY - 0.0f) * AlphaY + 1.0f;
+	const varying float p2_Y_MultiplierVector = ((-1.5f * AlphaY + 2.0f) * AlphaY + 0.5f) * AlphaY + 0.0f;
+	const varying float p3_Y_MultiplierVector = ((+0.5f * AlphaY - 0.5f) * AlphaY + 0.0f) * AlphaY + 0.0f;
+
+	const varying int32 BaseIndexVector = (MinX - 1) + SizeX * (MinY - 1);
+
+	varying float Result;
+
+	// Read the current active lanes
+	const uniform int64 LaneMask = lanemask_unsafe();
+
+	// Reset active lanes
+	unmasked_unsafe
+	{
+		UNROLL_N(TARGET_WIDTH)
+		for (uniform int32 Lane = 0; Lane < programCount; Lane++)
+		{
+			if (!(LaneMask & (1u << Lane)))
+			{
+				continue;
+			}
+
+			const uniform int32 BaseIndex = extract(BaseIndexVector, Lane);
+			const uniform int32 LaneMinX = extract(MinX, Lane);
+			const uniform int32 LaneMinY = extract(MinY, Lane);
+			const uniform float LaneAlphaX = extract(AlphaX, Lane);
+			const uniform float p0_Y_Multiplier = extract(p0_Y_MultiplierVector, Lane);
+			const uniform float p1_Y_Multiplier = extract(p1_Y_MultiplierVector, Lane);
+			const uniform float p2_Y_Multiplier = extract(p2_Y_MultiplierVector, Lane);
+			const uniform float p3_Y_Multiplier = extract(p3_Y_MultiplierVector, Lane);
+
+			check(0 <= LaneMinX - 1 && LaneMinX + 2 < SizeX);
+			check(0 <= LaneMinY - 1 && LaneMinY + 2 < SizeY);
+			check(BaseIndex + 2 * SizeX + TARGET_WIDTH <= SizeX * SizeY);
+#if TARGET_WIDTH == 8
+			check(BaseIndex + 3 * SizeX - 4 + TARGET_WIDTH <= SizeX * SizeY);
+#elif TARGET_WIDTH == 4
+			check(BaseIndex + 3 * SizeX + TARGET_WIDTH <= SizeX * SizeY);
+#endif
+
+			const varying float p0 = Heightmap[BaseIndex + 0 * SizeX + programIndex];
+			const varying float p1 = Heightmap[BaseIndex + 1 * SizeX + programIndex];
+			const varying float p2 = Heightmap[BaseIndex + 2 * SizeX + programIndex];
+#if TARGET_WIDTH == 8
+			// Don't access out of bounds
+			const varying float p3 = rotate((float)(Heightmap[BaseIndex + 3 * SizeX - 4 + programIndex]), 4);
+#elif TARGET_WIDTH == 4
+			const varying float p3 = Heightmap[BaseIndex + 3 * SizeX + programIndex];
+#endif
+
+			const varying float A = MakeRegister4_ZeroPadded(+0.0f, +1.0f, +0.0f, +0.0f);
+			const varying float B = MakeRegister4_ZeroPadded(-0.5f, -0.0f, +0.5f, +0.0f);
+			const varying float C = MakeRegister4_ZeroPadded(+1.0f, -2.5f, +2.0f, -0.5f);
+			const varying float D = MakeRegister4_ZeroPadded(-0.5f, +1.5f, -1.5f, +0.5f);
+
+			const varying float p0123_X_Multiplier = A + LaneAlphaX * (B + LaneAlphaX * (C + LaneAlphaX * D));
+
+			const uniform float Value = reduce_add(
+				p0123_X_Multiplier * (
+					p0_Y_Multiplier * p0 +
+					p1_Y_Multiplier * p1 +
+					p2_Y_Multiplier * p2 +
+					p3_Y_Multiplier * p3));
+
+			Result = insert(Result, Lane, Value);
+		}
+	}
+
+	return Result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+export void PREPROCESSOR_JOIN(VoxelHeightmapStamp_ApplyHeightmap_, Type)(
+	const uniform FVoxelHeightBulkQuery& Query,
+	const uniform FVoxelHeightTransform& StampToQuery,
+	const uniform EVoxelHeightBlendMode BlendMode,
+	const uniform bool bApplyOnVoid,
+	const uniform float Smoothness,
+	const uniform bool bUseBicubic,
+	const uniform float ScaleZ,
+	const uniform float OffsetZ,
+	const uniform float ScaleXY,
+	const uniform int32 SizeX,
+	const uniform int32 SizeY,
+	const uniform Type Heightmap[])
+{
+	const uniform float SizeXMinus2 = SizeX - 2.0001f;
+	const uniform float SizeYMinus2 = SizeY - 2.0001f;
+
+	const uniform float InvScaleXY = 1.f / ScaleXY;
+	const uniform float2 Offset = MakeFloat2(SizeX, SizeY) / 2.f;
+
+	for (uniform int32 IndexY = Query.StartIndex.y; IndexY < Query.EndIndex.y; IndexY++)
+	{
+		FOREACH(IndexX, Query.StartIndex.x, Query.EndIndex.x)
+		{
+			const varying int32 Index = GetIndex(Query, IndexX, IndexY);
+			const varying double2 WorldPosition = GetPosition(Query, IndexX, IndexY);
+			const varying float2 LocalPosition = InverseTransform(StampToQuery, WorldPosition);
+			const varying float2 HeightmapPosition = LocalPosition * InvScaleXY + Offset;
+
+			coherent_if (
+				HeightmapPosition.x < 1.f ||
+				HeightmapPosition.y < 1.f ||
+				HeightmapPosition.x > SizeXMinus2 ||
+				HeightmapPosition.y > SizeYMinus2)
+			{
+				continue;
+			}
+
+			const varying float NewHeight = SampleHeightmap(
+				bUseBicubic,
+				SizeX,
+				SizeY,
+				Heightmap,
+				HeightmapPosition);
+
+			coherent_if (isnan(NewHeight))
+			{
+				continue;
+			}
+
+			const varying float OldHeight = Query.Heights[Index];
+
+			varying float Alpha = 0.f;
+			Query.Heights[Index] = GetTransformedHeight(
+				StampToQuery,
+				BlendMode,
+				bApplyOnVoid,
+				Smoothness,
+				ScaleZ,
+				OffsetZ,
+				LocalPosition,
+				OldHeight,
+				NewHeight,
+				Alpha);
+		}
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+export void PREPROCESSOR_JOIN(VoxelHeightmapStamp_ApplyHeightmap_Sparse_, Type)(
+	const uniform FVoxelHeightSparseQuery& Query,
+	const uniform FVoxelHeightTransform& StampToQuery,
+	uniform float Alphas[],
+	const uniform bool bWriteHeight,
+	const uniform bool bWriteAlpha,
+	const uniform EVoxelHeightBlendMode BlendMode,
+	const uniform bool bApplyOnVoid,
+	const uniform float Smoothness,
+	const uniform bool bUseBicubic,
+	const uniform float ScaleZ,
+	const uniform float OffsetZ,
+	const uniform float ScaleXY,
+	const uniform int32 SizeX,
+	const uniform int32 SizeY,
+	const uniform Type Heightmap[])
+{
+	const uniform float SizeXMinus2 = SizeX - 2.0001f;
+	const uniform float SizeYMinus2 = SizeY - 2.0001f;
+
+	const uniform float InvScaleXY = 1.f / ScaleXY;
+	const uniform float2 Offset = MakeFloat2(SizeX, SizeY) / 2.f;
+
+	FOREACH(Index, 0, Query.Num)
+	{
+		const varying double2 WorldPosition = MakeDouble2(
+			Query.PositionsX[Index],
+			Query.PositionsY[Index]);
+		const varying float2 LocalPosition = InverseTransform(StampToQuery, WorldPosition);
+		const varying float2 HeightmapPosition = LocalPosition * InvScaleXY + Offset;
+
+		coherent_if (
+			HeightmapPosition.x < 1.f ||
+			HeightmapPosition.y < 1.f ||
+			HeightmapPosition.x > SizeXMinus2 ||
+			HeightmapPosition.y > SizeYMinus2)
+		{
+			if (bWriteAlpha)
+			{
+				Alphas[Index] = 0.f;
+			}
+			continue;
+		}
+
+		varying float NewHeight = SampleHeightmap(
+			bUseBicubic,
+			SizeX,
+			SizeY,
+			Heightmap,
+			HeightmapPosition);
+
+		coherent_if (isnan(NewHeight))
+		{
+			if (bWriteAlpha)
+			{
+				Alphas[Index] = 0.f;
+			}
+			continue;
+		}
+
+		const varying float OldHeight = GetHeight(Query, Index);
+
+		varying float Alpha = 0.f;
+		const varying float Height = GetTransformedHeight(
+			StampToQuery,
+			BlendMode,
+			bApplyOnVoid,
+			Smoothness,
+			ScaleZ,
+			OffsetZ,
+			LocalPosition,
+			OldHeight,
+			NewHeight,
+			Alpha);
+
+		if (bWriteHeight)
+		{
+			SetHeight(Query, Index, Height);
+		}
+
+		if (bWriteAlpha)
+		{
+			Alphas[Index] = Alpha;
+		}
+	}
+}

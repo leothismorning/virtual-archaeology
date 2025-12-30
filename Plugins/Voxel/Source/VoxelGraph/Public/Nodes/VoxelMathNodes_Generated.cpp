@@ -1,0 +1,40 @@
+// Copyright Voxel Plugin SAS. All Rights Reserved.
+
+#include "VoxelISPCNodeHelpers.h"
+
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Acos);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_AcosDegrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Asin);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_AsinDegrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Atan);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Atan2);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Atan2Degrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_AtanDegrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_BilinearInterpolation);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Bitwise_And);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Bitwise_Not);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Bitwise_Or);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Bitwise_Xor);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_BooleanNOR);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_BooleanNOT);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_BooleanXOR);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_BreakQuaternion);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Cos);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_CosDegrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_DegreesToRadians);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_DistanceToColor);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_GetPI);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_IsFinite);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_IsNaN);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_LeftShift);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_MakeQuaternion);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_MakeRotationFromX);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_MakeRotationFromY);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_MakeRotationFromZ);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_RadiansToDegrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_ReplaceNaN);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_RightShift);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Sin);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_SinDegrees);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_Tan);
+REGISTER_VOXEL_NODE_ISPC(VoxelMathNodes, VoxelComputeNode_TanDegrees);
