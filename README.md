@@ -9,8 +9,10 @@ This project aims to cultivate students’ archaeological research thinking thro
 ## Development Team
 - Zhichun Liu  
 - Tong Zhu  
-- Sirui Liu  
+- Sirui Liu
 
+## Affiliation
+- **The University of Hong Kong**
 ## Roadmap
 
 ### Version 1
